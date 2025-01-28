@@ -231,6 +231,7 @@
     <script>
         let CAPTCHA_API_URL;
         let CLAIM_API_URL;
+        let DEFAULT_USER_IDS;
 
         async function fetchConfig() {
             try {
@@ -238,7 +239,18 @@
                 const config = await response.json();
                 CAPTCHA_API_URL = config.captcha_api_url;
                 CLAIM_API_URL = config.claim_api_url;
-                console.log('配置加載完成:', { CAPTCHA_API_URL, CLAIM_API_URL });
+                DEFAULT_USER_IDS = config.default_user_ids;
+                
+                // 如果有預設用戶ID，自動填入輸入框
+                if (DEFAULT_USER_IDS && DEFAULT_USER_IDS.length > 0) {
+                    document.getElementById('gameId').value = DEFAULT_USER_IDS.join(',');
+                }
+                
+                console.log('配置加載完成:', { 
+                    CAPTCHA_API_URL, 
+                    CLAIM_API_URL,
+                    DEFAULT_USER_IDS 
+                });
             } catch (error) {
                 console.error('Error fetching config:', error);
                 showError('無法載入配置: ' + error.message);
