@@ -1,0 +1,21 @@
+name: captcha
+
+services:
+  service:
+    build: .
+    container_name: service
+    ports:
+      - "8500:8000"
+    volumes:
+      - .:/app
+      - ./static:/app/static
+      - ./.env:/app/.env
+    environment:
+      - PYTHONPATH=/app
+      - ENVIRONMENT=development
+    env_file:
+      - .env
+    command: uvicorn main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000} --reload
+
+volumes:
+  app-data: 

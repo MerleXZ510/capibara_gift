@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>禮品碼兌換</title>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input {
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <h1>禮品碼兌換</h1>
+    <form id="uploadForm">
+        <div class="form-group">
+            <label for="gameId">用戶 ID:</label>
+            <input type="text" id="gameId" name="game_id" required>
+        </div>
+        <div class="form-group">
+            <label for="serialNumber">禮品碼:</label>
+            <input type="text" id="serialNumber" name="serial_number" required>
+        </div>
+        <button type="submit">兌換禮品碼</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        let CAPTCHA_API_URL;
+        let CLAIM_API_URL;
+
+        async function fetchConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                CAPTCHA_API_URL = config.captcha_api_url;
+                CLAIM_API_URL = config.claim_api_url;
+                console.log('配置加載完成:', { CAPTCHA_API_URL, CLAIM_API_URL });
+            } catch (error) {
+                console.error('Error fetching config:', error);
+                showError('無法載入配置: ' + error.message);
+                throw error;
+            }
+        }
+
+        async function handleSubmit(e) {
+            e.preventDefault();
+            
+            try {
+                // 確保配置已加載
+                if (!CAPTCHA_API_URL || !CLAIM_API_URL) {
+                    await fetchConfig();
+                }
+
+                const gameId = document.getElementById('gameId').value;
+                const serialNumber = document.getElementById('serialNumber').value;
+
+                // 顯示處理中訊息
+                document.getElementById('result').innerHTML = '<p>處理中，請稍候...</p>';
+
+                // 1. 獲取驗證碼ID
+                console.log('正在獲取驗證碼...');
+                const captchaResponse = await fetch(CAPTCHA_API_URL, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!captchaResponse.ok) {
+                    throw new Error(`獲取驗證碼失敗: ${captchaResponse.status} ${captchaResponse.statusText}`);
+                }
+                
+                const captchaData = await captchaResponse.json();
+                console.log('驗證碼響應:', captchaData);
+                
+                if (captchaData.code !== 0) {
+                    throw new Error('獲取驗證碼失敗: ' + captchaData.message);
+                }
+                
+                const captchaId = captchaData.data.captchaId;
+                console.log('獲取到驗證碼ID:', captchaId);
+
+                // 2. 獲取驗證碼圖片並辨識
+                console.log('正在辨識驗證碼...');
+                const formData = new FormData();
+                formData.append('game_id', gameId);
+                formData.append('serial_number', serialNumber);
+                formData.append('captcha_id', captchaId);
+
+                const recognizeResponse = await fetch('/api/captcha', {
+                    method: 'POST',
+                    body: formData,
+                });
+                
+                if (!recognizeResponse.ok) {
+                    throw new Error('驗證碼辨識失敗');
+                }
+                
+                const recognizeData = await recognizeResponse.json();
+                console.log('辨識結果:', recognizeData);
+                
+                if (!recognizeData.success) {
+                    throw new Error(recognizeData.message);
+                }
+
+                // 3. 提交兌換請求
+                console.log('正在提交兌換請求...');
+                const requestData = {
+                    userId: gameId,
+                    giftCode: serialNumber,
+                    captcha: recognizeData.result,
+                    captchaId: captchaId
+                };
+                console.log('請求參數:', JSON.stringify(requestData, null, 2));
+
+                const claimResponse = await fetch(CLAIM_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const claimData = await claimResponse.json();
+                console.log('兌換結果:', claimData);
+                
+                // 顯示結果
+                let resultMessage = '';
+                if (claimData.code === 20407) {
+                    resultMessage = '此禮品碼已經兌換過';
+                } else if (claimData.code === 20002) {
+                    resultMessage = '驗證碼錯誤';
+                } else if (claimData.code === 0) {
+                    resultMessage = '兌換成功';
+                } else {
+                    resultMessage = claimData.message || '未知錯誤';
+                }
+
+                document.getElementById('result').innerHTML = `
+                    <h3>兌換結果:</h3>
+                    <p>狀態: ${resultMessage}</p>
+                    <p>結果代碼: ${claimData.code}</p>
+                    <p>詳細信息:</p>
+                    <pre>${JSON.stringify(claimData, null, 2)}</pre>
+                `;
+
+            } catch (error) {
+                console.error('錯誤:', error);
+                showError(error.message);
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('result').innerHTML = `
+                <h3>錯誤:</h3>
+                <pre>${message}</pre>
+            `;
+        }
+
+        // 初始化：確保配置加載完成
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await fetchConfig();
+            } catch (error) {
+                console.error('初始化失敗:', error);
+            }
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', handleSubmit);
+    </script>
+</body>
+</html> 
