@@ -1,2 +1,49 @@
 # ... 其他內容 ...
 .env 
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 虛擬環境
+venv/
+ENV/
+
+# 日誌文件
+*.log
+logs/
+
+# 測試覆蓋率
+.coverage
+htmlcov/
+
+# 本地開發文件
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
