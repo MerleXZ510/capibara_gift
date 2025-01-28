@@ -18,19 +18,27 @@ class CaptchaService:
 
             # 進行辨識
             result = self.dddd_reader.classification(image_content)
+            logger.info(f"原始辨識結果: {result}")
+            
             if not result:
                 raise ValueError("無法辨識驗證碼")
 
             # 清理結果，只保留數字
-            result = ''.join(filter(str.isdigit, result))
+            cleaned_result = ''.join(filter(str.isdigit, result))
+            logger.info(f"清理後結果: {cleaned_result}")
             
             # 驗證結果長度
-            if len(result) != 4:
-                logger.warning(f"辨識結果長度不正確: {result} (長度: {len(result)})")
-                raise ValueError("驗證碼格式不正確")
+            if len(cleaned_result) != 4:
+                logger.warning(f"辨識結果長度不正確: {cleaned_result} (長度: {len(cleaned_result)})")
+                # 如果長度不足4位，嘗試補0
+                if len(cleaned_result) < 4:
+                    cleaned_result = cleaned_result.zfill(4)
+                    logger.info(f"補0後結果: {cleaned_result}")
+                else:
+                    raise ValueError("驗證碼格式不正確")
 
-            logger.info(f"驗證碼辨識結果: {result}")
-            return result
+            logger.info(f"最終驗證碼結果: {cleaned_result}")
+            return cleaned_result
 
         except ValueError as ve:
             logger.error(f"驗證碼辨識錯誤: {str(ve)}")

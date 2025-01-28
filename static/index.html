@@ -3,57 +3,230 @@
 <head>
     <title>禮品碼兌換</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
+        :root {
+            --primary-color: #4CAF50;
+            --error-color: #f44336;
+            --processing-color: #2196F3;
+            --border-color: #ddd;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            line-height: 1.6;
+            padding: 15px;
+            max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
+            background-color: #f5f5f5;
         }
+
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
         .form-group {
             margin-bottom: 15px;
         }
+
         label {
             display: block;
             margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
         }
+
         input {
-            padding: 8px;
             width: 100%;
-            box-sizing: border-box;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
         }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+        }
+
         button {
             padding: 10px 20px;
-            background-color: #4CAF50;
+            background-color: var(--primary-color);
             color: white;
             border: none;
+            border-radius: 4px;
             cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
         }
+
         button:hover {
             background-color: #45a049;
         }
+
         #result {
             margin-top: 20px;
+        }
+
+        .user-section {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .user-section h4 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #333;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .result-item {
+            margin: 8px 0;
             padding: 10px;
-            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            border-left: 4px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .result-item.success {
+            border-left-color: var(--primary-color);
+            background-color: #f0fff0;
+        }
+
+        .result-item.error {
+            border-left-color: var(--error-color);
+            background-color: #fff0f0;
+        }
+
+        .result-item.processing {
+            border-left-color: var(--processing-color);
+            background-color: #f0f8ff;
+        }
+
+        .status-text {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .detail {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .show-details {
+            color: var(--processing-color);
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 5px;
+        }
+
+        .show-details:hover {
+            text-decoration: underline;
+        }
+
+        pre {
+            background-color: #f8f8f8;
+            padding: 8px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .user-section {
+                padding: 10px;
+            }
+
+            .result-item {
+                padding: 8px;
+            }
+
+            .status-text {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .status-text span {
+                margin-top: 5px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+
+            .container {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 18px;
+            }
+
+            button {
+                width: 100%;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>禮品碼兌換</h1>
-    <form id="uploadForm">
-        <div class="form-group">
-            <label for="gameId">用戶 ID:</label>
-            <input type="text" id="gameId" name="game_id" required>
-        </div>
-        <div class="form-group">
-            <label for="serialNumber">禮品碼:</label>
-            <input type="text" id="serialNumber" name="serial_number" required>
-        </div>
-        <button type="submit">兌換禮品碼</button>
-    </form>
+    <div class="container">
+        <h1>禮品碼兌換</h1>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="gameId">用戶 ID列表 (用逗號分隔):</label>
+                <input type="text" id="gameId" name="game_id" required placeholder="例如: 123,456,789">
+            </div>
+            <div class="form-group">
+                <label for="serialNumber">禮品碼列表 (用逗號分隔):</label>
+                <input type="text" id="serialNumber" name="serial_number" required placeholder="例如: code1,code2,code3">
+            </div>
+            <button type="submit">批量兌換禮品碼</button>
+        </form>
 
-    <div id="result"></div>
+        <div id="result"></div>
+    </div>
 
     <script>
         let CAPTCHA_API_URL;
@@ -73,23 +246,18 @@
             }
         }
 
-        async function handleSubmit(e) {
-            e.preventDefault();
-            
+        async function processSingleClaim(gameId, serialNumber, resultContainer, retryCount = 0) {
+            const maxRetries = 3;
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'result-item processing';
+            itemDiv.innerHTML = `
+                <div class="status-text">處理中: 禮品碼 ${serialNumber}${retryCount > 0 ? ` (重試第 ${retryCount} 次)` : ''}</div>
+                <div class="detail"></div>
+            `;
+            resultContainer.appendChild(itemDiv);
+
             try {
-                // 確保配置已加載
-                if (!CAPTCHA_API_URL || !CLAIM_API_URL) {
-                    await fetchConfig();
-                }
-
-                const gameId = document.getElementById('gameId').value;
-                const serialNumber = document.getElementById('serialNumber').value;
-
-                // 顯示處理中訊息
-                document.getElementById('result').innerHTML = '<p>處理中，請稍候...</p>';
-
                 // 1. 獲取驗證碼ID
-                console.log('正在獲取驗證碼...');
                 const captchaResponse = await fetch(CAPTCHA_API_URL, {
                     method: 'POST',
                     headers: { 
@@ -99,21 +267,17 @@
                 });
                 
                 if (!captchaResponse.ok) {
-                    throw new Error(`獲取驗證碼失敗: ${captchaResponse.status} ${captchaResponse.statusText}`);
+                    throw new Error(`獲取驗證碼失敗: ${captchaResponse.status}`);
                 }
                 
                 const captchaData = await captchaResponse.json();
-                console.log('驗證碼響應:', captchaData);
-                
                 if (captchaData.code !== 0) {
                     throw new Error('獲取驗證碼失敗: ' + captchaData.message);
                 }
                 
                 const captchaId = captchaData.data.captchaId;
-                console.log('獲取到驗證碼ID:', captchaId);
 
-                // 2. 獲取驗證碼圖片並辨識
-                console.log('正在辨識驗證碼...');
+                // 2. 辨識驗證碼
                 const formData = new FormData();
                 formData.append('game_id', gameId);
                 formData.append('serial_number', serialNumber);
@@ -129,21 +293,17 @@
                 }
                 
                 const recognizeData = await recognizeResponse.json();
-                console.log('辨識結果:', recognizeData);
-                
                 if (!recognizeData.success) {
                     throw new Error(recognizeData.message);
                 }
 
                 // 3. 提交兌換請求
-                console.log('正在提交兌換請求...');
                 const requestData = {
                     userId: gameId,
                     giftCode: serialNumber,
                     captcha: recognizeData.result,
                     captchaId: captchaId
                 };
-                console.log('請求參數:', JSON.stringify(requestData, null, 2));
 
                 const claimResponse = await fetch(CLAIM_API_URL, {
                     method: 'POST',
@@ -155,27 +315,111 @@
                 });
 
                 const claimData = await claimResponse.json();
-                console.log('兌換結果:', claimData);
                 
-                // 顯示結果
+                // 檢查是否需要重試
+                if (claimData.code === 20002 && retryCount < maxRetries) {  // 驗證碼錯誤且未超過重試次數
+                    console.log(`驗證碼錯誤，正在重試 (${retryCount + 1}/${maxRetries})...`);
+                    itemDiv.remove();  // 移除當前的處理中狀態
+                    await new Promise(resolve => setTimeout(resolve, 500));  // 等待500ms
+                    return processSingleClaim(gameId, serialNumber, resultContainer, retryCount + 1);
+                }
+                
+                // 更新結果顯示
                 let resultMessage = '';
+                let resultClass = '';
                 if (claimData.code === 20407) {
                     resultMessage = '此禮品碼已經兌換過';
+                    resultClass = 'error';
                 } else if (claimData.code === 20002) {
-                    resultMessage = '驗證碼錯誤';
+                    resultMessage = `驗證碼錯誤 (已重試 ${retryCount} 次)`;
+                    resultClass = 'error';
                 } else if (claimData.code === 0) {
                     resultMessage = '兌換成功';
+                    resultClass = 'success';
                 } else {
                     resultMessage = claimData.message || '未知錯誤';
+                    resultClass = 'error';
                 }
 
-                document.getElementById('result').innerHTML = `
-                    <h3>兌換結果:</h3>
-                    <p>狀態: ${resultMessage}</p>
-                    <p>結果代碼: ${claimData.code}</p>
-                    <p>詳細信息:</p>
-                    <pre>${JSON.stringify(claimData, null, 2)}</pre>
+                itemDiv.className = `result-item ${resultClass}`;
+                itemDiv.innerHTML = `
+                    <div class="status-text">
+                        ${serialNumber}
+                        <span style="float:right;color:${resultClass === 'success' ? '#4CAF50' : '#f44336'}">
+                            ${resultMessage}
+                        </span>
+                    </div>
+                    <div class="detail">
+                        <p>代碼: ${claimData.code}</p>
+                        <a class="show-details" onclick="toggleDetails(this)">顯示詳細信息</a>
+                        <pre style="display:none">${JSON.stringify(claimData, null, 2)}</pre>
+                    </div>
                 `;
+
+            } catch (error) {
+                // 如果是其他錯誤且未超過重試次數，也進行重試
+                if (retryCount < maxRetries) {
+                    console.log(`請求失敗，正在重試 (${retryCount + 1}/${maxRetries})...`);
+                    itemDiv.remove();
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    return processSingleClaim(gameId, serialNumber, resultContainer, retryCount + 1);
+                }
+
+                itemDiv.className = 'result-item error';
+                itemDiv.innerHTML = `
+                    <div class="status-text">禮品碼: ${serialNumber}</div>
+                    <div class="detail">
+                        <p>錯誤: ${error.message}</p>
+                        <p>重試次數: ${retryCount}/${maxRetries}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function handleSubmit(e) {
+            e.preventDefault();
+            
+            try {
+                if (!CAPTCHA_API_URL || !CLAIM_API_URL) {
+                    await fetchConfig();
+                }
+
+                const gameIds = document.getElementById('gameId').value
+                    .split(',')
+                    .map(id => id.trim())
+                    .filter(id => id);
+
+                const serialNumbers = document.getElementById('serialNumber').value
+                    .split(',')
+                    .map(code => code.trim())
+                    .filter(code => code);
+
+                if (gameIds.length === 0) {
+                    throw new Error('請輸入至少一個用戶ID');
+                }
+                if (serialNumbers.length === 0) {
+                    throw new Error('請輸入至少一個禮品碼');
+                }
+
+                const resultContainer = document.getElementById('result');
+                resultContainer.innerHTML = '<h3>兌換進度:</h3>';
+
+                // 為每個用戶創建一個結果區域
+                for (const gameId of gameIds) {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'user-section';
+                    userDiv.innerHTML = `<h4>用戶 ${gameId} 的兌換結果:</h4>`;
+                    resultContainer.appendChild(userDiv);
+
+                    // 處理該用戶的所有禮品碼
+                    for (const serialNumber of serialNumbers) {
+                        await processSingleClaim(gameId, serialNumber, userDiv);
+                        // 增加延遲到 500ms
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                    // 每個用戶處理完後多等待一下
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
 
             } catch (error) {
                 console.error('錯誤:', error);
@@ -200,6 +444,18 @@
         });
 
         document.getElementById('uploadForm').addEventListener('submit', handleSubmit);
+
+        // 添加切換詳細信息的函數
+        function toggleDetails(element) {
+            const pre = element.nextElementSibling;
+            if (pre.style.display === 'none') {
+                pre.style.display = 'block';
+                element.textContent = '隱藏詳細信息';
+            } else {
+                pre.style.display = 'none';
+                element.textContent = '顯示詳細信息';
+            }
+        }
     </script>
 </body>
 </html> 
