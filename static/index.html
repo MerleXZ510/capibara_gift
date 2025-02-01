@@ -208,6 +208,91 @@
                 width: 100%;
             }
         }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .input-group input {
+            flex: 1;
+        }
+        
+        .secondary-button {
+            padding: 8px 16px;
+            background-color: #f5f5f5;
+            color: #333;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .secondary-button:hover {
+            background-color: #e0e0e0;
+            border-color: #ccc;
+        }
+        
+        .secondary-button:active {
+            background-color: #d5d5d5;
+        }
+
+        @media (max-width: 480px) {
+            .input-group {
+                flex-direction: column;
+            }
+            
+            .secondary-button {
+                width: 100%;
+            }
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .danger-button {
+            padding: 10px 20px;
+            background-color: var(--error-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .danger-button:hover {
+            background-color: #d32f2f;
+        }
+        
+        @media (max-width: 480px) {
+            .button-group {
+                flex-direction: column;
+            }
+        }
+
+        .warning-button {
+            padding: 10px 20px;
+            background-color: #ff9800;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .warning-button:hover {
+            background-color: #f57c00;
+        }
+        
+        .warning-button:disabled {
+            background-color: #ffcc80;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -216,13 +301,20 @@
         <form id="uploadForm">
             <div class="form-group">
                 <label for="gameId">用戶 ID列表 (用逗號分隔):</label>
-                <input type="text" id="gameId" name="game_id" required placeholder="例如: 123,456,789">
+                <div class="input-group">
+                    <input type="text" id="gameId" name="game_id" required placeholder="例如: 123,456,789">
+                    <button type="button" id="clearGameId" class="secondary-button">清空</button>
+                </div>
             </div>
             <div class="form-group">
                 <label for="serialNumber">禮品碼列表 (用逗號分隔):</label>
                 <input type="text" id="serialNumber" name="serial_number" required placeholder="例如: code1,code2,code3">
             </div>
-            <button type="submit">批量兌換禮品碼</button>
+            <div class="button-group">
+                <button type="submit" id="submitBtn">批量兌換禮品碼</button>
+                <button type="button" id="stopBtn" class="danger-button" style="display: none;">停止兌換</button>
+                <button type="button" id="retryBtn" class="warning-button" style="display: none;">重試失敗項目</button>
+            </div>
         </form>
 
         <div id="result"></div>
@@ -233,6 +325,11 @@
         let CLAIM_API_URL;
         let DEFAULT_USER_IDS;
 
+        // 添加停止標誌
+        let isProcessing = false;
+        let shouldStop = false;
+        let failedItems = [];  // 存儲失敗的項目
+
         async function fetchConfig() {
             try {
                 const response = await fetch('/api/config');
@@ -241,9 +338,10 @@
                 CLAIM_API_URL = config.claim_api_url;
                 DEFAULT_USER_IDS = config.default_user_ids;
                 
-                // 如果有預設用戶ID，自動填入輸入框
-                if (DEFAULT_USER_IDS && DEFAULT_USER_IDS.length > 0) {
-                    document.getElementById('gameId').value = DEFAULT_USER_IDS.join(',');
+                // 只有當輸入框為空時，才自動填入預設值
+                const gameIdInput = document.getElementById('gameId');
+                if (DEFAULT_USER_IDS && DEFAULT_USER_IDS.length > 0 && !gameIdInput.value) {
+                    gameIdInput.value = DEFAULT_USER_IDS.join(',');
                 }
                 
                 console.log('配置加載完成:', { 
@@ -342,15 +440,18 @@
                 if (claimData.code === 20407) {
                     resultMessage = '此禮品碼已經兌換過';
                     resultClass = 'error';
+                    failedItems.push({ gameId, serialNumber, reason: resultMessage });
                 } else if (claimData.code === 20002) {
                     resultMessage = `驗證碼錯誤 (已重試 ${retryCount} 次)`;
                     resultClass = 'error';
+                    failedItems.push({ gameId, serialNumber, reason: resultMessage });
                 } else if (claimData.code === 0) {
                     resultMessage = '兌換成功';
                     resultClass = 'success';
                 } else {
                     resultMessage = claimData.message || '未知錯誤';
                     resultClass = 'error';
+                    failedItems.push({ gameId, serialNumber, reason: resultMessage });
                 }
 
                 itemDiv.className = `result-item ${resultClass}`;
@@ -385,13 +486,49 @@
                         <p>重試次數: ${retryCount}/${maxRetries}</p>
                     </div>
                 `;
+                failedItems.push({ gameId, serialNumber, reason: error.message });
+            }
+        }
+
+        async function processBatch(gameId, serialNumbers, userDiv, progressDiv, completedTasks, totalTasks) {
+            // 設置並行請求的數量
+            const batchSize = 3;  // 可以根據需求調整
+            
+            // 將禮品碼分組
+            for (let i = 0; i < serialNumbers.length; i += batchSize) {
+                if (shouldStop) {
+                    throw new Error('用戶已停止兌換');
+                }
+
+                const batch = serialNumbers.slice(i, i + batchSize);
+                const promises = batch.map(serialNumber => 
+                    processSingleClaim(gameId, serialNumber, userDiv)
+                        .then(() => {
+                            completedTasks.count++;
+                            progressDiv.innerHTML = `處理進度: ${completedTasks.count}/${totalTasks}`;
+                        })
+                );
+
+                // 等待當前批次完成
+                await Promise.all(promises);
+                // 批次間的延遲
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
 
         async function handleSubmit(e) {
             e.preventDefault();
             
+            if (isProcessing) return;  // 防止重複提交
+            
             try {
+                isProcessing = true;
+                shouldStop = false;
+                failedItems = [];  // 重置失敗項目列表
+                document.getElementById('submitBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'block';
+                document.getElementById('retryBtn').style.display = 'none';
+
                 if (!CAPTCHA_API_URL || !CLAIM_API_URL) {
                     await fetchConfig();
                 }
@@ -416,26 +553,61 @@
                 const resultContainer = document.getElementById('result');
                 resultContainer.innerHTML = '<h3>兌換進度:</h3>';
 
-                // 為每個用戶創建一個結果區域
-                for (const gameId of gameIds) {
+                // 添加進度計數
+                const totalTasks = gameIds.length * serialNumbers.length;
+                const completedTasks = { count: 0 };  // 使用對象來共享計數
+                const progressDiv = document.createElement('div');
+                progressDiv.className = 'progress-info';
+                progressDiv.style.marginBottom = '15px';
+                resultContainer.appendChild(progressDiv);
+
+                // 為每個用戶創建一個結果區域並處理
+                const userPromises = gameIds.map(async gameId => {
+                    if (shouldStop) {
+                        throw new Error('用戶已停止兌換');
+                    }
+
                     const userDiv = document.createElement('div');
                     userDiv.className = 'user-section';
                     userDiv.innerHTML = `<h4>用戶 ${gameId} 的兌換結果:</h4>`;
                     resultContainer.appendChild(userDiv);
 
-                    // 處理該用戶的所有禮品碼
-                    for (const serialNumber of serialNumbers) {
-                        await processSingleClaim(gameId, serialNumber, userDiv);
-                        // 增加延遲到 500ms
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                    }
-                    // 每個用戶處理完後多等待一下
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    await processBatch(gameId, serialNumbers, userDiv, progressDiv, completedTasks, totalTasks);
+                });
+
+                // 等待所有用戶處理完成
+                await Promise.all(userPromises);
+
+                // 完成後顯示重試按鈕（如果有失敗項目）
+                if (failedItems.length > 0) {
+                    document.getElementById('retryBtn').style.display = 'block';
                 }
+
+                // 添加完成提示
+                const completeDiv = document.createElement('div');
+                completeDiv.className = 'complete-info';
+                completeDiv.innerHTML = `
+                    <div style="
+                        margin-top: 20px;
+                        padding: 15px;
+                        background-color: #4CAF50;
+                        color: white;
+                        border-radius: 4px;
+                        text-align: center;
+                        font-weight: bold;
+                    ">
+                        所有兌換請求已完成 (共 ${completedTasks.count} 個)
+                    </div>
+                `;
+                resultContainer.appendChild(completeDiv);
 
             } catch (error) {
                 console.error('錯誤:', error);
                 showError(error.message);
+            } finally {
+                isProcessing = false;
+                document.getElementById('submitBtn').style.display = 'block';
+                document.getElementById('stopBtn').style.display = 'none';
             }
         }
 
@@ -468,6 +640,101 @@
                 element.textContent = '顯示詳細信息';
             }
         }
+
+        // 添加清空按鈕事件監聽
+        document.getElementById('clearGameId').addEventListener('click', function() {
+            document.getElementById('gameId').value = '';
+            document.getElementById('gameId').focus();
+        });
+
+        // 添加停止按鈕事件監聽
+        document.getElementById('stopBtn').addEventListener('click', function() {
+            shouldStop = true;
+            this.disabled = true;  // 防止重複點擊
+            this.textContent = '正在停止...';
+        });
+
+        // 添加重試功能
+        async function retryFailedItems() {
+            if (isProcessing || failedItems.length === 0) return;
+            
+            try {
+                isProcessing = true;
+                shouldStop = false;
+                document.getElementById('submitBtn').style.display = 'none';
+                document.getElementById('stopBtn').style.display = 'block';
+                document.getElementById('retryBtn').style.display = 'none';
+
+                const resultContainer = document.getElementById('result');
+                resultContainer.innerHTML = '<h3>重試失敗項目:</h3>';
+
+                const itemsToRetry = [...failedItems];
+                failedItems = [];  // 清空失敗列表，準備記錄新的失敗
+
+                // 添加進度計數
+                const totalTasks = itemsToRetry.length;
+                const completedTasks = { count: 0 };
+                const progressDiv = document.createElement('div');
+                progressDiv.className = 'progress-info';
+                progressDiv.style.marginBottom = '15px';
+                resultContainer.appendChild(progressDiv);
+
+                // 按用戶分組重試項目
+                const groupedItems = itemsToRetry.reduce((acc, item) => {
+                    if (!acc[item.gameId]) {
+                        acc[item.gameId] = [];
+                    }
+                    acc[item.gameId].push(item.serialNumber);
+                    return acc;
+                }, {});
+
+                // 為每個用戶創建區域並重試
+                const userPromises = Object.entries(groupedItems).map(async ([gameId, serialNumbers]) => {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'user-section';
+                    userDiv.innerHTML = `<h4>用戶 ${gameId} 的重試結果:</h4>`;
+                    resultContainer.appendChild(userDiv);
+
+                    await processBatch(gameId, serialNumbers, userDiv, progressDiv, completedTasks, totalTasks);
+                });
+
+                await Promise.all(userPromises);
+
+                // 添加完成提示
+                const completeDiv = document.createElement('div');
+                completeDiv.className = 'complete-info';
+                completeDiv.innerHTML = `
+                    <div style="
+                        margin-top: 20px;
+                        padding: 15px;
+                        background-color: #4CAF50;
+                        color: white;
+                        border-radius: 4px;
+                        text-align: center;
+                        font-weight: bold;
+                    ">
+                        重試完成 (共 ${completedTasks.count} 個)
+                    </div>
+                `;
+                resultContainer.appendChild(completeDiv);
+
+                // 如果還有失敗項目，顯示重試按鈕
+                if (failedItems.length > 0) {
+                    document.getElementById('retryBtn').style.display = 'block';
+                }
+
+            } catch (error) {
+                console.error('重試錯誤:', error);
+                showError(error.message);
+            } finally {
+                isProcessing = false;
+                document.getElementById('submitBtn').style.display = 'block';
+                document.getElementById('stopBtn').style.display = 'none';
+            }
+        }
+
+        // 添加重試按鈕事件監聽
+        document.getElementById('retryBtn').addEventListener('click', retryFailedItems);
     </script>
 </body>
 </html> 

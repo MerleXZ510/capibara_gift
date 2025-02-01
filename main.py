@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from app.api.endpoints import captcha, config
 from loguru import logger
 import os
@@ -27,8 +28,13 @@ app.add_middleware(
 # 掛載靜態文件
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# 添加根路徑重定向
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/static/index.html")
+
 # 註冊路由
-app.include_router(captcha.router, prefix="/api", tags=["captcha"])
+app.include_router(captcha.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
 
 @app.on_event("startup")
