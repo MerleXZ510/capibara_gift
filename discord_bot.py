@@ -3,6 +3,10 @@ import subprocess
 from discord.ext import commands
 import discord
 
+# 確保在 requirements.txt 中包含：
+# discord.py
+# 並在 Railway 設定中開啟 Auto Install Dependencies
+
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
