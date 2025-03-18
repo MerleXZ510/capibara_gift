@@ -26,9 +26,7 @@ async def claim(ctx, code: str):
         if len(output) > 1900:
             output = output[:1900] + "... (已截斷)"
 
-        await ctx.send(f'執行結果：\n```
-{output}
-```')
+        await ctx.send(f'執行結果：\n```\n{output}\n```')
 
     except Exception as e:
         await ctx.send(f'執行時發生錯誤：{e}')
