@@ -1,11 +1,8 @@
 import os
-import subprocess
+import asyncio
 from discord.ext import commands
 import discord
-
-# 確保在 requirements.txt 中包含：
-# discord.py
-# 並在 Railway 設定中開啟 Auto Install Dependencies
+from redeem_logic import redeem_code_for_user
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -17,23 +14,22 @@ async def on_ready():
 
 @bot.command()
 async def claim(ctx, code: str):
-    await ctx.send(f'收到指令，開始嘗試兌換代碼：`{code}`...')
-    try:
-        result = subprocess.run(
-            ['python3', 'main.py', code],
-            capture_output=True,
-            text=True
-        )
+    await ctx.send(f'🎫 收到禮品碼 `{code}`，開始為所有帳號兌換...')
 
-        output = result.stdout or result.stderr or "沒有任何輸出"
+    user_ids = os.getenv("DEFAULT_USER_IDS", "")
+    user_list = [uid.strip() for uid in user_ids.split(",") if uid.strip()]
 
-        if len(output) > 1900:
-            output = output[:1900] + "... (已截斷)"
+    if not user_list:
+        await ctx.send("❌ 沒有設定帳號（DEFAULT_USER_IDS）")
+        return
 
-        await ctx.send(f'執行結果：\n```\n{output}\n```')
+    results = await asyncio.gather(*(redeem_code_for_user(uid, code) for uid in user_list))
 
-    except Exception as e:
-        await ctx.send(f'執行時發生錯誤：{e}')
+    response = "\n".join(results)
+    if len(response) > 1900:
+        response = response[:1900] + "\n...(已截斷)"
+
+    await ctx.send(f"🎁 結果如下：\n```\n{response}\n```")
 
 if __name__ == "__main__":
     token = os.getenv('DISCORD_TOKEN')
